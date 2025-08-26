@@ -6,7 +6,6 @@ import (
   "crypto/tls"
   "net/http"
   "log"
-  "os"
   "time"
   "io"
   "strings"
@@ -29,66 +28,86 @@ type PlayerStatus struct {
 }
 
 
-func SendCurrentSong(songChan chan string) error {
-  tr := &http.Transport{
-        TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-    } // bypass tls
-	url := "https://10.0.0.119/httpapi.asp?command=getMetaInfo"
+func SendCurrentSong(songChan chan Response) error {
+  var previousSong Response
+  var currentSong Response
+  ticker := time.NewTicker(5000 * time.Millisecond)
+  
+  for range ticker.C {
+    tr := &http.Transport{
+          TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+      } // bypass tls
+    url := "https://10.0.0.119/httpapi.asp?command=getMetaInfo"
 
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-    Transport: tr,
-	}
-	resp, err := client.Get(url)
+    client := &http.Client{
+      Timeout: 5 * time.Second,
+      Transport: tr,
+    }
+    resp, err := client.Get(url)
 
-	if err != nil {
-		fmt.Print(err.Error())
-		os.Exit(1)
-	}
-	defer resp.Body.Close()
+    if err != nil {
+      fmt.Print(err.Error())
+    }
+    defer resp.Body.Close()
 
-	respData, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
+    respData, err := io.ReadAll(resp.Body)
+    if err != nil {
+      log.Fatal(err)
+    }
 
-	var song Response
-	if err := json.Unmarshal(respData, &song); err != nil {
-		fmt.Println("Cannot unmarshal JSON")
-    return err
-	}
-	//fmt.Println(song)
-	song.MetaData.AlbumArtURI = strings.Replace(song.MetaData.AlbumArtURI, "320x320.jpg", "640x640.jpg", 1)
+    if err := json.Unmarshal(respData, &currentSong); err != nil {
+      fmt.Println("Cannot unmarshal JSON")
+      return err
+    }
+    //fmt.Println(song)
+    currentSong.MetaData.AlbumArtURI = strings.Replace(
+      currentSong.MetaData.AlbumArtURI, 
+      "320x320.jpg", 
+      "640x640.jpg", 1)
+
+    if currentSong != previousSong {
+      songChan <-currentSong
+      previousSong = currentSong
+    }
+  }
   return nil
 }
 
-func FetchCurrentStatus(statusChan chan string) error {
-  tr := &http.Transport{
-        TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-    } // bypass tls
-	
-  url := "https://10.0.0.119/httpapi.asp?command=getPlayerStatus"
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-    Transport: tr,
-	}
-	resp, err := client.Get(url)
+func FetchCurrentStatus(statusChan chan PlayerStatus) error {
+  var currentStatus PlayerStatus
+  var previousStatus PlayerStatus
+  ticker := time.NewTicker(5000 * time.Millisecond)
 
-	if err != nil {
-		log.Fatal(err)
-		os.Exit(1)
-	}
-	defer resp.Body.Close()
+  for range ticker.C {
+    tr := &http.Transport{
+          TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+      } // bypass tls
+    
+    url := "https://10.0.0.119/httpapi.asp?command=getPlayerStatus"
+    client := &http.Client{
+      Timeout: 5 * time.Second,
+      Transport: tr,
+    }
+    resp, err := client.Get(url)
 
-	respData, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
+    if err != nil {
+      log.Fatal(err)
+    }
+    defer resp.Body.Close()
 
-	var playerStatus PlayerStatus
-	if err := json.Unmarshal([]byte(respData), &playerStatus); err != nil {
-		fmt.Println("Cannot unmarshal JSON")
-    return err
-	}
+    respData, err := io.ReadAll(resp.Body)
+    if err != nil {
+      log.Fatal(err)
+    }
+
+    if err := json.Unmarshal([]byte(respData), &currentStatus); err != nil {
+      fmt.Println("Cannot unmarshal JSON")
+      return err
+    }
+    if currentStatus != previousStatus {
+      statusChan <- currentStatus
+      previousStatus = currentStatus
+    }
+  }
   return nil
 }
