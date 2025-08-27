@@ -2,34 +2,191 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport", content="width=device-width, initial-scale=1.0">   
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-capable" content="yes">	
+    <link rel="stylesheet" href="styles.css">     
     <title>WebSocket Client</title>
 </head>
 <body>
-    <h2>WebSocket Client</h2>
-    <input type="text" id="messageInput" placeholder="Enter message" />
-    <button onclick="sendMessage()">Send</button>
-    <pre id="messages"></pre>
+    <div id="active-layout" class="layout">
+      <section id="main">
+        <img id="albumArt" class="album-art" src="./artwork-placeholder.png" alt="Album Art" class="lazyload" width="550" height="550">
+        <div class="songInfo">
+          <div class="track-title" id="title">N/A</div>
+          <div class="artist-name" id="artist">N/A</div>
+          <div class="album-name" id="album">N/A</div> 
+          <div class="playbackControl">
+            <button id="previousButton" class="button">Prev</button>
+            <button id="playButton" class='button'>Play/Pause</button>
+            <button id="nextButton" class="button">Next</button>
+          </div>
+        </div<
+      </div<
+      <div id="idle-layout" class="layout hidden">
+          <div id="container"</div>
+      </div>
+
+
+
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/color-thief/2.3.0/color-thief.umd.js"></script>
 
     <script>
-        let socket = new WebSocket("ws://localhost:8080/ws");
+
+      let currentLayout = "active"
+      let songHistory  = {}
+      $(document).ready(function() {
+
+       
+        
+        let socket = new WebSocket("ws://10.0.0.149:8080/ws"); //establish socket connection
+        
+        const prevButton = document.getElementById("previousButton");
+
+        prevButton.addEventListener('click', function() {
+            socket.send("previous")
+        });
+
+        const nextButton = document.getElementById("nextButton");
+
+        nextButton.addEventListener('click', function() {
+            socket.send("next")
+        });
+
+        const playButton = document.getElementById("playButton");
+
+        playButton.addEventListener('click', function() {
+          socket.send("onepause")
+        });
+
 
         socket.onopen = function(event) {
-            document.getElementById("messages").textContent += "Connected to WebSocket server\n";
-        };
-
+          console.log("Connected to Websocket");
+        }
         socket.onmessage = function(event) {
-            document.getElementById("messages").textContent += "Received: " + event.data + "\n";
+          const data = JSON.parse(event.data);
+          if (data.status) {
+            if (data.idleTimer > 10000) {
+              currentLayout = "idle"
+              socket.send("request")
+            }           
+          } 
+          if (data.metaData){
+            updateUI(data.metaData)
+          }
+          if (data.type == "history" && currentLayout =="idle" ) {
+            renderIdleLayout(data.Songs)
+          }
+          if (data.status == "play" && currentLayout == "idle") {
+            //document.getElementById("active-layout").style.display = "block"; //unhide active layout
+            //document.getElementById("idle-layout").style.display = "none"; //hide active layout
+          }
         };
 
         socket.onclose = function(event) {
-            document.getElementById("messages").textContent += "Disconnected from WebSocket server\n";
+          console.log("Disconnected from Websocket")
         };
+        
 
-        function sendMessage() {
-            let message = document.getElementById("messageInput").value;
-            socket.send(message);
-            document.getElementById("messageInput").value = "";
+        function updateCurrentStatus(data) {
+            document.getElementById("playButton").textContent = data.status;
         }
+
+        
+        function updateUI(song) {
+            document.getElementById("title").textContent = song.title;
+            document.getElementById("album").textContent = song.album;
+            document.getElementById("albumArt").src = song.albumArtURI;
+            document.getElementById("artist").textContent = song.artist;
+            
+            // update background color
+            const colorThief = new ColorThief()
+            var imageURL = document.getElementById("albumArt").src;
+            const img = new Image();
+            img.crossOrigin = 'Anonymous'
+            img.onload = function () {
+            // Make sure image is finished loading
+              if (img.complete) {
+                const dominantColor = colorThief.getColor(img)
+              //Sets background color to dominant color
+                document.body.style.backgroundColor = `rgb(${dominantColor.join(",")})`; 
+              } else {
+                image.addEventListener('load', function() {
+                  colorThief.getColor(img);
+                });
+              }
+            }
+            img.src = imageURL;
+        }
+        
+    function renderIdleLayout(songHistory) { //render Idle layout
+      document.addEventListener("DOMContentLoaded", function(){
+          let element = document.getElementById("idle-layout");
+            if (element) {
+              element.style.color = "black";
+            }
+          })
+      document.getElementById("active-layout").style.display = "none"; //hide active layout
+
+      const container = document.getElementById('container');
+
+          trackData = songHistory
+          // Get the most recent track (last played)
+          const lastTrack = trackData.length > 0 ? trackData[trackData.length - 1].metaData : null;
+          const trackName = lastTrack?.title || 'Unknown Track';
+          const artistName = lastTrack?.artist || 'Unknown Artist';
+          const totalSongPlayed = trackData.length 
+          
+          // Get last 15 unique albums (by album name)
+          const seenAlbums = new Set();
+          const last15Albums = [];
+          // Go through tracks from most recent to oldest
+          for (let i = trackData.length - 1; i >= 0 && last15Albums.length < 12; i--) {
+              const track = trackData[i].metaData;
+              const album = track.album;
+              const albumArt = track.albumArtURI;
+              
+              // Only add if we haven't seen this album yet and it has valid data
+              if (album && albumArt && !seenAlbums.has(album)) {
+                  seenAlbums.add(album);
+                  last15Albums.push({
+                      name: album,
+                      image: albumArt,
+                      artist: track.artist
+                  });
+              }
+          }
+          // Generate album images HTML
+          const albumsHTML = last15Albums.map(album => 
+              `<img class="top_albums" src="${album.image}" alt="${album.name}" title="${album.name} by ${album.artist}">`
+          ).join('');
+          
+          container.innerHTML = `
+              <div class="idle-container">
+                <div class="stat_box">
+                  <div class="header">Scrobbles</div>
+                  <div class="scrobbles">${totalSongPlayed}</div>
+                </div>
+                <div class="stat_box last_played">
+                  <div class="header">Last Played</div>
+                  <div class="play_box">
+                    <div class="track">${trackName}</div>
+                    <div class="artist">${artistName}</div>
+                  </div>
+                </div>
+                <div class="list">Recent Albums</div>
+                  <div class="albums">
+                        ${albumsHTML || '<p class="no-albums">No recent albums found</p>'}
+                  </div>
+                </div>
+          `;
+                   
+      }                          
+         
+ }); 
+      
+
     </script>
 </body>
 </html>

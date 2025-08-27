@@ -1,0 +1,65 @@
+
+
+
+
+
+
+#main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    z-index: 2;
+    position: relative;
+    
+    padding: 20px;
+}
+body {  
+    background-color: white;
+    color: rgb(228, 227, 233);
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+.album-art {
+  display:flex;
+	border-radius:18px;
+	margin-top: 7px;
+	box-shadow: 0 0 20px 4px rgba(0, 0, 0, 0.7);
+}
+
+.songInfo {
+	border-radius:0px;
+  width:500px;
+  height:150px;
+  padding:20px;  
+  backdrop-filter: blur(4px) brightness(1);
+}
+.track-title {
+  font-family: 'Avenir Next Pro LT';
+  font-size: 32px;
+}
+.album-name {
+	font-size: 20px;
+}
+.artist-name {
+	font-size: 20px;
+}
+.playbackControl {
+  align-items: center;
+  display:flex;
+  flex-direction: row;
+  position: relative;
+  justify-content: center;
+  color: rgb(228, 227, 233);
+  padding:10px;
+}
+
+
+.button {
+  font-family: 'Roboto';
+  border-radius: 5px;
+  background: transparent;
+  color: white;
+  padding:12px;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+}
