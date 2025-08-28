@@ -6,6 +6,9 @@ import (
   "github.com/gorilla/websocket"
   "wss-test/api"
   "encoding/json"
+  "database/sql"
+  "log"
+  _ "github.com/mattn/go-sqlite3"
 )
 
 var upgrader = websocket.Upgrader{
@@ -40,6 +43,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+  getSongDB()
   songChan = make(chan api.Response)
   statusChan = make(chan api.PlayerStatus)
 
@@ -62,6 +66,7 @@ func handleBroadcasting(songChan chan api.Response, statusChan chan api.PlayerSt
   for {
     select {
     case song := <-songChan:
+      updateSongDB(song)
       jsonSong, _ := json.Marshal(song)
       for client := range clients {
           if err := client.WriteMessage(websocket.TextMessage, jsonSong); err != nil {
@@ -85,10 +90,10 @@ func handleBroadcasting(songChan chan api.Response, statusChan chan api.PlayerSt
 
 
 func handleHistory(msg string) {
-  api.TrackHistory.Type = "history"
-  api.TrackHistory.Songs = api.Songs
+  history := getSongDB()
+  history.Type = "history"
   if (msg == "requestHistory"){
-    jsonHistory,_ := json.Marshal(api.TrackHistory)
+    jsonHistory,_ := json.Marshal(history)
     for client := range clients {
       if err := client.WriteMessage(websocket.TextMessage, jsonHistory); err != nil {
               fmt.Println("broadcast error:", err)
@@ -99,5 +104,89 @@ func handleHistory(msg string) {
   }
 }
 
+/*
+func createSongDB() {
+  db, err := sql.Open("sqlite3", "songs.db")
+  if err != nil {
+    log.Fatal(err)
+  }
+  defer db.Close()
+  sqlStmt := `
+  CREATE TABLE IF NOT EXISTS songs(
+      album TEXT,
+      title TEXT,
+      artist TEXT,
+      albumArtURI TEXT,
+      sampleRate TEXT,
+      bitDepth TEXT
+  )
+  `
+  _, err = db.Exec(sqlStmt)
+  if err != nil {
+    log.Fatal(err)
+  }
+  log.Println("SongDB created successfully")
+}
+*/
+
+func updateSongDB(song api.Response) {
+  query := "INSERT INTO songs(album, title, artist, albumArtURI, sampleRate, bitDepth) VALUES (?, ?, ?, ?, ?, ?)"
+
+  data := song.MetaData
+  db, err := sql.Open("sqlite3", "./songs.db")
+  if err != nil {
+    log.Fatal(err)
+  }
+  defer db.Close()
+
+  _, err = db.Exec(query, data.Album, data.Title, data.Artist, data.AlbumArtURI, data.SampleRate, data.BitDepth)
+  if err != nil {
+    log.Fatal(err)
+  }
+  log.Println("Update DB successful")
+}
+
+func getSongDB() api.History {//return DB
+  history := api.History{}
+  songs := []api.Response{}
+
+  db, err := sql.Open("sqlite3", "./songs.db")
+  if err != nil {
+    log.Fatal(err)
+  }
+  defer db.Close()
+
+  rows, err := db.Query("SELECT album, title, artist, albumArtURI, sampleRate, bitDepth FROM songs")
+  if err != nil {
+    log.Fatal(err)
+  }
+
+  defer rows.Close()
+
+  for rows.Next() {
+    var album string
+    var title string
+    var artist string
+    var albumArtURI string
+    var sampleRate string
+    var bitDepth string
+    err = rows.Scan(&album, &title, &artist, &albumArtURI, &sampleRate, &bitDepth)
+    
+    song := api.Response{}
+    song.MetaData.Album = album
+    song.MetaData.Title = title
+    song.MetaData.Artist = artist
+    song.MetaData.AlbumArtURI = albumArtURI
+    song.MetaData.SampleRate = sampleRate
+    song.MetaData.BitDepth = bitDepth
+  
+    songs = append(songs, song)
+  }
+  if err = rows.Err(); err != nil {
+    log.Fatal(err)
+  }
+  history.Songs = songs
+  return history
+}
 
 
