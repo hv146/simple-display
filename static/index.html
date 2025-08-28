@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport", content="width=device-width, initial-scale=1.0">   
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-capable" content="yes">	
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <link rel="stylesheet" href="styles.css">     
     <title>WebSocket Client</title>
 </head>
@@ -16,13 +17,19 @@
           <div class="track-title" id="title">N/A</div>
           <div class="artist-name" id="artist">N/A</div>
           <div class="album-name" id="album">N/A</div> 
+        </div>
           <div class="playbackControl">
-            <button id="previousButton" class="button">Prev</button>
-            <button id="playButton" class='button'>Play/Pause</button>
-            <button id="nextButton" class="button">Next</button>
+            <button id="previousButton" class="button">
+              <i class="fa fa-step-backward"></i></button>
+            <button id="playButton" class='button'>
+              <i class="fa fa-play"></i>
+              <i class="fa fa-pause"></i>
+            </button>
+            <button id="nextButton" class="button">
+              <i class="fa fa-step-forward"></i>
+            </button>
           </div>
-        </div<
-      </div<
+      </div>
       <div id="idle-layout" class="layout hidden">
           <div id="container"</div>
       </div>
@@ -36,6 +43,7 @@
 
       let currentLayout = "active"
       let songHistory  = {}
+      let currentSong = {}
       $(document).ready(function() {
 
        
@@ -63,24 +71,35 @@
 
         socket.onopen = function(event) {
           console.log("Connected to Websocket");
+          socket.send("pause");
+          socket.send("requestHistory");
+          currentLayout ="idle";
         }
+
+        //handle data sending to client from server
         socket.onmessage = function(event) {
+          console.log(currentLayout)
           const data = JSON.parse(event.data);
           if (data.status) {
-            if (data.idleTimer > 10000) {
+            if (data.idleTimer == 10000) {
+              socket.send("requestHistory")
               currentLayout = "idle"
-              socket.send("request")
             }           
           } 
           if (data.metaData){
-            updateUI(data.metaData)
+            currentSong = data.metaData
+            updateUI(currentSong)
           }
           if (data.type == "history" && currentLayout =="idle" ) {
             renderIdleLayout(data.Songs)
+            document.getElementById("active-layout").style.display = "none"; //hide active layout
+            document.getElementById("idle-layout").style.display = "block"; //unhide active layout
           }
-          if (data.status == "play" && currentLayout == "idle") {
-            //document.getElementById("active-layout").style.display = "block"; //unhide active layout
-            //document.getElementById("idle-layout").style.display = "none"; //hide active layout
+          if (data.status == "play" && currentLayout == "idle") {//update from pause to play
+            document.getElementById("idle-layout").style.display = "none"; //hide active layout
+            document.getElementById("active-layout").style.display = "block"; //unhide active layout
+            currentLayout = "active"
+            updateUI(currentSong)
           }
         };
 
@@ -89,16 +108,13 @@
         };
         
 
-        function updateCurrentStatus(data) {
-            document.getElementById("playButton").textContent = data.status;
-        }
-
+        
         
         function updateUI(song) {
-            document.getElementById("title").textContent = song.title;
-            document.getElementById("album").textContent = song.album;
+            document.getElementById("title").textContent = song.title.toUpperCase();
+            document.getElementById("album").textContent = song.album.toUpperCase();
             document.getElementById("albumArt").src = song.albumArtURI;
-            document.getElementById("artist").textContent = song.artist;
+            document.getElementById("artist").textContent = song.artist.toUpperCase();
             
             // update background color
             const colorThief = new ColorThief()
@@ -108,9 +124,10 @@
             img.onload = function () {
             // Make sure image is finished loading
               if (img.complete) {
-                const dominantColor = colorThief.getColor(img)
+                const palette = colorThief.getPalette(img)
               //Sets background color to dominant color
-                document.body.style.backgroundColor = `rgb(${dominantColor.join(",")})`; 
+                const bestColor = findBestBackgroundColor(palette)
+                document.body.style.backgroundColor = `rgb(${bestColor.join(",")})`; 
               } else {
                 image.addEventListener('load', function() {
                   colorThief.getColor(img);
@@ -119,30 +136,40 @@
             }
             img.src = imageURL;
         }
-        
+    function findBestBackgroundColor(palette) {
+      const sortedByDarkness = palette.sort((a, b) => getBrightness(a) - getBrightness(b));
+      
+      // Find color that's dark but not black, bright but not white
+      return sortedByDarkness.find(color => {
+          const brightness = getBrightness(color);
+          return brightness > 30 && brightness < 150; 
+      }) || sortedByDarkness[Math.floor(sortedByDarkness.length / 2)];
+    }
+    
+    function getBrightness(rgbArray) {
+      const [r, g, b] = rgbArray;
+      // Standard luminance calculation
+      return (r * 0.299 + g * 0.587 + b * 0.114);
+    }
     function renderIdleLayout(songHistory) { //render Idle layout
-      document.addEventListener("DOMContentLoaded", function(){
-          let element = document.getElementById("idle-layout");
-            if (element) {
-              element.style.color = "black";
-            }
-          })
-      document.getElementById("active-layout").style.display = "none"; //hide active layout
 
+      document.body.style.backgroundColor = `rgb(15,14,14)`; 
       const container = document.getElementById('container');
 
           trackData = songHistory
           // Get the most recent track (last played)
           const lastTrack = trackData.length > 0 ? trackData[trackData.length - 1].metaData : null;
-          const trackName = lastTrack?.title || 'Unknown Track';
-          const artistName = lastTrack?.artist || 'Unknown Artist';
+          const trackNameOG = lastTrack?.title || 'Unknown Track';
+          const trackName = trackNameOG.toUpperCase()
+          const artistNameOG = lastTrack?.artist || 'Unknown Artist';
+          const artistName = artistNameOG.toUpperCase()
           const totalSongPlayed = trackData.length 
           
-          // Get last 15 unique albums (by album name)
+          // Get last 18 unique albums (by album name)
           const seenAlbums = new Set();
-          const last15Albums = [];
+          const last18Albums = [];
           // Go through tracks from most recent to oldest
-          for (let i = trackData.length - 1; i >= 0 && last15Albums.length < 12; i--) {
+          for (let i = trackData.length - 1; i >= 0 && last18Albums.length < 18; i--) {
               const track = trackData[i].metaData;
               const album = track.album;
               const albumArt = track.albumArtURI;
@@ -150,7 +177,7 @@
               // Only add if we haven't seen this album yet and it has valid data
               if (album && albumArt && !seenAlbums.has(album)) {
                   seenAlbums.add(album);
-                  last15Albums.push({
+                  last18Albums.push({
                       name: album,
                       image: albumArt,
                       artist: track.artist
@@ -158,14 +185,14 @@
               }
           }
           // Generate album images HTML
-          const albumsHTML = last15Albums.map(album => 
+          const albumsHTML = last18Albums.map(album => 
               `<img class="top_albums" src="${album.image}" alt="${album.name}" title="${album.name} by ${album.artist}">`
           ).join('');
           
           container.innerHTML = `
               <div class="idle-container">
                 <div class="stat_box">
-                  <div class="header">Scrobbles</div>
+                  <div class="header">Total Played</div>
                   <div class="scrobbles">${totalSongPlayed}</div>
                 </div>
                 <div class="stat_box last_played">
@@ -181,8 +208,183 @@
                   </div>
                 </div>
           `;
-                   
-      }                          
+          addIdleStyles();         
+      }
+
+
+    function addIdleStyles() {
+    // Check if styles already exist
+    if (document.getElementById('idle-styles')) return;
+    
+    const style = document.createElement('style');
+    style.id = 'idle-styles';
+    style.textContent = `
+
+body {
+  font-family: 'Courier New', monospace;
+}
+.header {
+    font-size: 30px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    color: rgb(30, 147, 171);
+}
+    
+.stat_box {
+      background-color: #1C1C1E;
+      border-radius: 8px;
+      padding: 9px 10px 10px 14px;
+      margin: 11px 0px 20px 20px;
+      float: left;
+      width: calc(50% - 54px);
+      height: 140px;
+      color: #D0D0D0;
+      text-transform: uppercase;
+      font-size: 13px;
+      font-weight: bold;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      position: relative;
+}
+.stat_box:last-of-type {
+  margin-right: 20px;
+}
+
+.play_box:last-of-type {
+  margin-right: 20px;
+}
+
+.stat_box .header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin: 10px 0px 0px 15px;
+}
+    
+.track {
+    font-size: 10px;
+    color: #fff;
+    margin-bottom: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+  
+.artist {
+    font-size: 20px;
+    color: #8D9194;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+    
+.list {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    color: #fff;
+    margin-left: 20px;
+}
+    
+.albums {
+  margin-top: 15px;
+  margin-left: 20px;
+  padding: 20px 35px 11px 14px;  
+  overflow: visible;
+
+}
+
+.top_albums {
+    width: 160px;
+    height: 160px
+    justify-content:center;
+    margin-left: 20px;
+    margin-bottom: 17px;
+    border-radius: 6px;
+    box-shadow: 0 0 10px 4px rgba(0, 0, 0, 0.7);
+    cursor: pointer;
+}
+
+.top_albums:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+    
+.no-albums, .error-message {
+    color: #8D9194;
+    font-style: italic;
+    padding: 20px;
+}
+
+.background-blur {
+  position: fixed;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(40px);
+  opacity: 0.3;
+  z-index: -1;
+  transition: all 1s ease-in-out;
+}
+
+.background-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(10, 18, 68, 0.198), rgba(0,0,0,0.4));
+  z-index: 0;
+}
+
+
+.stat_box .scrobbles {
+  margin-top: 0px;
+  font-size: 45px;
+  color: #fff;
+  text-align: center;
+  }
+  .stat_box .artist {
+  margin-top: 8px;
+  text-transform: none;
+  font-size: 16px;
+  color: #8D9194;
+  white-space: pre-line;
+
+}
+.stat_box .track {
+  font-size: 24px;
+  text-transform: none;
+  color: #fff;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  margin-top: 0px;
+  white-space: pre-line;
+
+}
+
+
+  
+@media screen and (max-width: 1024px) and (orientation: landscape) {
+  .main-content {
+                grid-template-columns: 1fr;
+                grid-template-rows: 1fr 1fr;
+                padding: 10px;
+                gap: 10px;
+            }
+
+}
+
+
+    `;
+    document.head.appendChild(style);
+}
          
  }); 
       

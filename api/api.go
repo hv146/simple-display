@@ -36,9 +36,10 @@ var Songs []Response
 var TrackHistory History
 
 func FetchCurrentSong(songChan chan Response) error {
+  pollInterval := 10000
   var previousSong Response
   var currentSong Response
-  ticker := time.NewTicker(10000 * time.Millisecond)
+  ticker := time.NewTicker(time.Duration(pollInterval) * time.Millisecond)
   
   for range ticker.C {
     tr := &http.Transport{
@@ -83,9 +84,10 @@ func FetchCurrentSong(songChan chan Response) error {
 }
 
 func FetchCurrentStatus(statusChan chan PlayerStatus) error {
+  pollInterval := 10000
   var currentStatus PlayerStatus
   var previousStatus PlayerStatus
-  ticker := time.NewTicker(10000 * time.Millisecond)
+  ticker := time.NewTicker(time.Duration(pollInterval) * time.Millisecond)
 
   for range ticker.C {
     tr := &http.Transport{
@@ -138,9 +140,8 @@ func PlayerCommand(command string)error {
     Transport: tr,
   }
   var url string 
-
   switch command {
-  case "play":
+    case "play":
     url = "https://10.0.0.119/httpapi.asp?command=setPlayerCmd:play"
   case "pause":
     url = "https://10.0.0.119/httpapi.asp?command=setPlayerCmd:pause"

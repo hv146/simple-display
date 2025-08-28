@@ -13,6 +13,8 @@ var upgrader = websocket.Upgrader{
 }
 
 var clients = make(map[*websocket.Conn]bool) //track active clients
+var songChan chan api.Response
+var statusChan chan api.PlayerStatus
 
 func handleConnections(w http.ResponseWriter, r *http.Request) {
 
@@ -38,8 +40,8 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-  songChan := make(chan api.Response)
-  statusChan := make(chan api.PlayerStatus)
+  songChan = make(chan api.Response)
+  statusChan = make(chan api.PlayerStatus)
 
   go api.FetchCurrentSong(songChan)
   go api.FetchCurrentStatus(statusChan)
@@ -50,7 +52,7 @@ func main() {
   http.HandleFunc("/ws", handleConnections)
 
   fmt.Println("WebSocket server started on: 8080")
-  err := http.ListenAndServe(":8080", nil)
+  err := http.ListenAndServe(":8000", nil)
   if err != nil {
     fmt.Println("ListenAndServe:", err)
   }
@@ -85,7 +87,7 @@ func handleBroadcasting(songChan chan api.Response, statusChan chan api.PlayerSt
 func handleHistory(msg string) {
   api.TrackHistory.Type = "history"
   api.TrackHistory.Songs = api.Songs
-  if (msg == "request"){
+  if (msg == "requestHistory"){
     jsonHistory,_ := json.Marshal(api.TrackHistory)
     for client := range clients {
       if err := client.WriteMessage(websocket.TextMessage, jsonHistory); err != nil {
@@ -96,5 +98,6 @@ func handleHistory(msg string) {
     }
   }
 }
+
 
 
