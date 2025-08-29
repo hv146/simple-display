@@ -43,7 +43,6 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-  getSongDB()
   songChan = make(chan api.Response)
   statusChan = make(chan api.PlayerStatus)
 
@@ -128,7 +127,6 @@ func createSongDB() {
   log.Println("SongDB created successfully")
 }
 */
-
 func updateSongDB(song api.Response) {
   query := "INSERT INTO songs(album, title, artist, albumArtURI, sampleRate, bitDepth) VALUES (?, ?, ?, ?, ?, ?)"
 
@@ -179,8 +177,12 @@ func getSongDB() api.History {//return DB
     song.MetaData.AlbumArtURI = albumArtURI
     song.MetaData.SampleRate = sampleRate
     song.MetaData.BitDepth = bitDepth
-  
-    songs = append(songs, song)
+    
+    if album != "" {
+      songs = append(songs, song)
+    } else {
+      continue
+    }
   }
   if err = rows.Err(); err != nil {
     log.Fatal(err)

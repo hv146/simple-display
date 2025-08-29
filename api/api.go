@@ -1,13 +1,13 @@
 package api
 
 import (
-  "fmt"
-  "encoding/json"
-  "crypto/tls"
-  "net/http"
-  "time"
-  "io"
-  "strings"
+	"crypto/tls"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
 )
 
 
@@ -32,11 +32,16 @@ type History struct {
   Songs []Response `jsons:"songs"`
 }
 var Songs []Response
-
+var Status PlayerStatus
 var TrackHistory History
 
 func FetchCurrentSong(songChan chan Response) error {
-  pollInterval := 10000
+  var pollInterval int
+  if Status.IdleTimer >= 10000 {
+    pollInterval = 20000
+  } else {
+    pollInterval = 6500
+  }
   var previousSong Response
   var currentSong Response
   ticker := time.NewTicker(time.Duration(pollInterval) * time.Millisecond)
@@ -61,12 +66,12 @@ func FetchCurrentSong(songChan chan Response) error {
     respData, err := io.ReadAll(resp.Body)
     if err != nil {
       fmt.Println("Error reading json: ", err)
-      continue
+      return err
     }
 
     if err := json.Unmarshal(respData, &currentSong); err != nil {
       fmt.Println("Cannot unmarshal JSON")
-      continue
+      
     }
     //fmt.Println(song)
     currentSong.MetaData.AlbumArtURI = strings.Replace(
@@ -74,7 +79,7 @@ func FetchCurrentSong(songChan chan Response) error {
       "320x320.jpg", 
       "640x640.jpg", 1)
 
-    if currentSong != previousSong {
+    if currentSong != previousSong && currentSong.MetaData.Album != "" {
       songChan <-currentSong
       Songs = append(Songs, currentSong)
       previousSong = currentSong
@@ -103,7 +108,7 @@ func FetchCurrentStatus(statusChan chan PlayerStatus) error {
 
     if err != nil {
       fmt.Println("error getting from url:",err)
-      continue
+      return err
     }
     defer resp.Body.Close()
 
@@ -117,6 +122,7 @@ func FetchCurrentStatus(statusChan chan PlayerStatus) error {
       return err
     }
     if currentStatus != previousStatus {
+      Status = currentStatus
       statusChan <- currentStatus
       previousStatus = currentStatus
     }
@@ -125,7 +131,7 @@ func FetchCurrentStatus(statusChan chan PlayerStatus) error {
     }
     if currentStatus.Status == "play" {
       currentStatus.IdleTimer = 0
-    }
+    } 
   }
   return nil
 }

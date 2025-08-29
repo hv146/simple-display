@@ -2,21 +2,25 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+
     <meta name="viewport", content="width=device-width, initial-scale=1.0">   
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Simple Display">
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <link rel="stylesheet" href="styles.css">     
-    <title>WebSocket Client</title>
+    <title>Wiim Display</title>
 </head>
 <body>
     <div id="active-layout" class="layout">
       <section id="main">
         <img id="albumArt" class="album-art" src="./artwork-placeholder.png" alt="Album Art" class="lazyload" width="550" height="550">
         <div class="songInfo">
-          <div class="track-title" id="title">N/A</div>
-          <div class="artist-name" id="artist">N/A</div>
-          <div class="album-name" id="album">N/A</div> 
+            <div class="track-title slide-content" id="title">Unknown</div>
+            <div class="artist-name slide-content" id="artist">Unknown</div>
+            <span class="separator">•••</span>
+            <div class="album-name slide-content" id="album">Unknown</div>
         </div>
           <div class="playbackControl">
             <button id="previousButton" class="button">
@@ -28,6 +32,10 @@
             <button id="nextButton" class="button">
               <i class="fa fa-step-forward"></i>
             </button>
+            <button id="switchLayout" class="button">
+              <i class="fa fa-power-off"></i>
+            </button>
+
           </div>
       </div>
       <div id="idle-layout" class="layout hidden">
@@ -41,7 +49,7 @@
 
     <script>
 
-      let currentLayout = "active"
+      let currentLayout = "idle"
       let songHistory  = {}
       let currentSong = {}
       $(document).ready(function() {
@@ -66,14 +74,21 @@
 
         playButton.addEventListener('click', function() {
           socket.send("onepause")
+        }); 
+        
+        const switchLayout = document.getElementById("switchLayout");
+        switchLayout.addEventListener('click', function() {
+          socket.send("onepause");
+          socket.send("requestHistory");
+          currentLayout = "idle"
         });
+
 
 
         socket.onopen = function(event) {
           console.log("Connected to Websocket");
-          socket.send("pause");
+          socket.send("onepause");
           socket.send("requestHistory");
-          currentLayout ="idle";
         }
 
         //handle data sending to client from server
@@ -82,8 +97,8 @@
           const data = JSON.parse(event.data);
           if (data.status) {
             if (data.idleTimer == 10000) {
-              socket.send("requestHistory")
-              currentLayout = "idle"
+              socket.send("requestHistory");
+              currentLayout = "idle";
             }           
           } 
           if (data.metaData){
@@ -91,9 +106,9 @@
             updateUI(currentSong)
           }
           if (data.type == "history" && currentLayout =="idle" ) {
-            renderIdleLayout(data.Songs)
             document.getElementById("active-layout").style.display = "none"; //hide active layout
             document.getElementById("idle-layout").style.display = "block"; //unhide active layout
+            renderIdleLayout(data.Songs)
           }
           if (data.status == "play" && currentLayout == "idle") {//update from pause to play
             document.getElementById("idle-layout").style.display = "none"; //hide active layout
@@ -112,10 +127,9 @@
         
         function updateUI(song) {
             document.getElementById("title").textContent = song.title.toUpperCase();
-            document.getElementById("album").textContent = song.album.toUpperCase();
+            document.getElementById("album").textContent = song.album;
             document.getElementById("albumArt").src = song.albumArtURI;
-            document.getElementById("artist").textContent = song.artist.toUpperCase();
-            
+            document.getElementById("artist").textContent = song.artist;
             // update background color
             const colorThief = new ColorThief()
             var imageURL = document.getElementById("albumArt").src;
@@ -151,8 +165,12 @@
       // Standard luminance calculation
       return (r * 0.299 + g * 0.587 + b * 0.114);
     }
-    function renderIdleLayout(songHistory) { //render Idle layout
 
+
+
+
+    function renderIdleLayout(songHistory) { //render Idle layout
+      console.log("received songdb")
       document.body.style.backgroundColor = `rgb(15,14,14)`; 
       const container = document.getElementById('container');
 
@@ -280,27 +298,29 @@ body {
 }
     
 .list {
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 600;
     margin-bottom: 20px;
     color: #fff;
     margin-left: 20px;
+    margin-top: -10px;
 }
     
 .albums {
-  margin-top: 15px;
-  margin-left: 20px;
-  padding: 20px 35px 11px 14px;  
+  width:fit-content;
+  height:fit-content;
+  margin-top: 10px;
+  margin-left: 15px;
   overflow: visible;
-
 }
 
 .top_albums {
-    width: 160px;
-    height: 160px
+    width: 150px;
+    height: 150px;
     justify-content:center;
-    margin-left: 20px;
-    margin-bottom: 17px;
+    margin-left: 25px;
+    margin-bottom: 15px;
+    margin-top: 0px;
     border-radius: 6px;
     box-shadow: 0 0 10px 4px rgba(0, 0, 0, 0.7);
     cursor: pointer;
@@ -369,27 +389,44 @@ body {
 
 }
 
-
-  
-@media screen and (max-width: 1024px) and (orientation: landscape) {
-  .main-content {
-                grid-template-columns: 1fr;
-                grid-template-rows: 1fr 1fr;
-                padding: 10px;
-                gap: 10px;
-            }
-
+@media only screen
+and (min-device-width: 744px)
+and (max-device-width: 1133px)
+and (orientation: landscape)
+and (-webkit-min-device-pixel-ratio: 2) {
+  body {
+      transform: scale(0.95); /* Everything 15% smaller */
+      padding: 0px;
+   }
 }
+@media only screen 
+  and (orientation: portrait) 
+  and (-webkit-min-device-pixel-ratio: 2) {
+  
 
+.top_albums {
+  width: 125px;
+  height: 125px;
+}
+.albums .top_albums:nth-child(17),
+.albums .top_albums:nth-child(18) {
+    display: none !important;
+  }
 
+.albums{
+  margin-top: 65px;
+}
+.list {
+  font-size: 25px;
+}
     `;
     document.head.appendChild(style);
 }
          
  }); 
       
-
-    </script>
+    
+  </script>
 </body>
 </html>
 
