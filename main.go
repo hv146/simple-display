@@ -4,7 +4,7 @@ import (
   "fmt"
   "net/http"
   "github.com/gorilla/websocket"
-  "wss-test/api"
+  "simple-display/api"
   "encoding/json"
   "database/sql"
   "log"
