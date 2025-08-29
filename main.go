@@ -43,6 +43,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+  //createSongDB()
   songChan = make(chan api.Response)
   statusChan = make(chan api.PlayerStatus)
 
@@ -103,7 +104,7 @@ func handleHistory(msg string) {
   }
 }
 
-/*
+
 func createSongDB() {
   db, err := sql.Open("sqlite3", "songs.db")
   if err != nil {
@@ -126,7 +127,7 @@ func createSongDB() {
   }
   log.Println("SongDB created successfully")
 }
-*/
+
 func updateSongDB(song api.Response) {
   query := "INSERT INTO songs(album, title, artist, albumArtURI, sampleRate, bitDepth) VALUES (?, ?, ?, ?, ?, ?)"
 
