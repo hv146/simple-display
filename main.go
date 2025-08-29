@@ -66,7 +66,9 @@ func handleBroadcasting(songChan chan api.Response, statusChan chan api.PlayerSt
   for {
     select {
     case song := <-songChan:
-      updateSongDB(song)
+      if song.MetaData.Album != "unknown"{
+        updateSongDB(song)
+      }
       jsonSong, _ := json.Marshal(song)
       for client := range clients {
           if err := client.WriteMessage(websocket.TextMessage, jsonSong); err != nil {
@@ -155,7 +157,7 @@ func getSongDB() api.History {//return DB
   }
   defer db.Close()
 
-  rows, err := db.Query("SELECT album, title, artist, albumArtURI, sampleRate, bitDepth FROM songs")
+  rows, err := db.Query("SELECT DISTINCT album, title, artist, albumArtURI, sampleRate, bitDepth FROM songs WHERE album NOT LIKE 'unknow'")
   if err != nil {
     log.Fatal(err)
   }

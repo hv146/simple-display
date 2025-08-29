@@ -76,9 +76,9 @@
           socket.send("onepause")
         }); 
         
-        const switchLayout = document.getElementById("switchLayout");
+        const switchLayout = document.getElementById("switchLayout");// switch layout and send stop request
         switchLayout.addEventListener('click', function() {
-          socket.send("onepause");
+          socket.send("stop");
           socket.send("requestHistory");
           currentLayout = "idle"
         });
@@ -87,7 +87,7 @@
 
         socket.onopen = function(event) {
           console.log("Connected to Websocket");
-          socket.send("onepause");
+          socket.send("stop");
           socket.send("requestHistory");
         }
 
@@ -96,10 +96,15 @@
           console.log(currentLayout)
           const data = JSON.parse(event.data);
           if (data.status) {
+            console.log(data)
             if (data.idleTimer == 10000) {
               socket.send("requestHistory");
               currentLayout = "idle";
-            }           
+            }     
+            if (data.idleTimer == 50000) {
+              console.log("stop music")
+              socket.send("stop");
+            }
           } 
           if (data.metaData){
             currentSong = data.metaData

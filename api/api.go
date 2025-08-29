@@ -42,6 +42,9 @@ func FetchCurrentSong(songChan chan Response) error {
   } else {
     pollInterval = 6500
   }
+  if Status.Status == "stop" {
+    pollInterval = 0
+  }
   var previousSong Response
   var currentSong Response
   ticker := time.NewTicker(time.Duration(pollInterval) * time.Millisecond)
@@ -156,7 +159,10 @@ func PlayerCommand(command string)error {
   case "next":
     url = "https://10.0.0.119/httpapi.asp?command=setPlayerCmd:next"
   case "previous":
-    url = "https://10.0.0.119/httpapi.asp?command=setPlayerCmd:next"
+    url = "https://10.0.0.119/httpapi.asp?command=setPlayerCmd:next" 
+  case "stop":
+    url = "https://10.0.0.119/httpapi.asp?command=setPlayerCmd:stop"
+    Status.Status ="stop"
   }
 
   resp, err := client.Get(url)
