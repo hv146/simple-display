@@ -68,7 +68,7 @@ body {
   color: rgb(228, 227, 233);
   margin-top:10px;
   position:relative;
-  margin-left:80px;
+  margin-left:10px;
 }
 
 
@@ -183,4 +183,5 @@ and (-webkit-min-device-pixel-ratio: 2) {
         padding: 0px; 
         margin-top: -50px;
     } 
-}
+
+  }
