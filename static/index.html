@@ -17,11 +17,16 @@
       <section id="main">
         <img id="albumArt" class="album-art" src="./artwork-placeholder.png" alt="Album Art" class="lazyload" width="550" height="550">
         <div class="songInfo">
-            <div class="track-title slide-content" id="title">Unknown</div>
-            <div class="artist-name slide-content" id="artist">Unknown</div>
+            <div class="song-duration" id="songLength">
+            <span id="currentPos">00:00</span>
+            <span id="timeSeparator">/</span>
+            <span class="duration" id="duration">00:00</span>
+          </div>
+          </div>
+            <div class="track-title" id="title">Unknown</div>
+            <div class="artist-name" id="artist">Unknown</div>
             <span class="separator">•••</span>
-            <div class="album-name slide-content" id="album">Unknown</div>
-        </div>
+            <div class="album-name" id="album">Unknown</div>
           <div class="playbackControl">
             <button id="previousButton" class="button">
               <i class="fa fa-step-backward"></i></button>
@@ -35,11 +40,11 @@
             <button id="switchLayout" class="button">
               <i class="fa fa-power-off"></i>
             </button>
-
           </div>
       </div>
       <div id="idle-layout" class="layout hidden">
           <div id="container"</div>
+          <div>Hello</div>
       </div>
 
 
@@ -49,9 +54,12 @@
 
     <script>
 
-      let currentLayout = "idle"
-      let songHistory  = {}
-      let currentSong = {}
+      let currentLayout = "idle";
+      let songHistory  = {};
+      let currentSong = {};
+      let songDuration = "";
+      let currPos = "";
+      console.log(document.getElementById('idle-layout')); // Should not be null
       $(document).ready(function() {
 
        
@@ -61,18 +69,21 @@
         const prevButton = document.getElementById("previousButton");
 
         prevButton.addEventListener('click', function() {
+            newSong = true;
             socket.send("previous")
         });
 
         const nextButton = document.getElementById("nextButton");
 
         nextButton.addEventListener('click', function() {
+            newSong = true;
             socket.send("next")
         });
 
         const playButton = document.getElementById("playButton");
 
         playButton.addEventListener('click', function() {
+          pause = true;
           socket.send("onepause")
         }); 
         
@@ -93,10 +104,8 @@
 
         //handle data sending to client from server
         socket.onmessage = function(event) {
-          console.log(currentLayout)
           const data = JSON.parse(event.data);
           if (data.status) {
-            console.log(data)
             if (data.idleTimer == 10000) {
               socket.send("requestHistory");
               currentLayout = "idle";
@@ -105,7 +114,11 @@
               console.log("stop music")
               socket.send("stop");
             }
-          } 
+            if (data.totlen != 0) {
+              songDuration = data.totlen;
+            }
+            document.getElementById("currentPos").textContent= formatDuration(data.curpos);
+         } 
           if (data.metaData){
             currentSong = data.metaData
             updateUI(currentSong)
@@ -127,14 +140,29 @@
           console.log("Disconnected from Websocket")
         };
         
-
-        
-        
+      function formatDuration(ms){
+          let separator = ":"
+          if (ms == 0){
+            return
+          }
+          let min = Math.floor((ms / 1000) / 60);
+          if (min == 0) {
+            min = "00"
+          } 
+          let s = Math.floor((ms / 1000) % 60);
+          if (s < 10) {
+            separator += "0"
+          }
+          return min + separator + s
+      }
+                   
         function updateUI(song) {
+            document.getElementById("duration").textContent = formatDuration(songDuration);
             document.getElementById("title").textContent = song.title.toUpperCase();
             document.getElementById("album").textContent = song.album;
             document.getElementById("albumArt").src = song.albumArtURI;
             document.getElementById("artist").textContent = song.artist;
+             ;
             // update background color
             const colorThief = new ColorThief()
             var imageURL = document.getElementById("albumArt").src;
@@ -175,7 +203,6 @@
 
 
     function renderIdleLayout(songHistory) { //render Idle layout
-      console.log("received songdb")
       document.body.style.backgroundColor = `rgb(15,14,14)`; 
       const container = document.getElementById('container');
 
@@ -230,9 +257,10 @@
                         ${albumsHTML || '<p class="no-albums">No recent albums found</p>'}
                   </div>
                 </div>
-          `;
+              `;
           addIdleStyles();         
       }
+    
 
 
     function addIdleStyles() {
@@ -427,8 +455,8 @@ and (-webkit-min-device-pixel-ratio: 2) {
     `;
     document.head.appendChild(style);
 }
-         
- }); 
+
+}); 
       
     
   </script>
