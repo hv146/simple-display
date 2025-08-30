@@ -25,6 +25,8 @@ type Response struct {
 type PlayerStatus struct {
   Status string `json:"status"`
   IdleTimer int `json:"idleTimer"`
+  Totlen string `json:"totlen"`
+  Curpos string  `json:"curpos"`
 }
 
 type History struct {
@@ -93,6 +95,9 @@ func FetchCurrentSong(songChan chan Response) error {
 
 func FetchCurrentStatus(statusChan chan PlayerStatus) error {
   pollInterval := 10000
+  if Status.IdleTimer >= 10000 {
+    pollInterval = 20000
+  }
   var currentStatus PlayerStatus
   var previousStatus PlayerStatus
   ticker := time.NewTicker(time.Duration(pollInterval) * time.Millisecond)
