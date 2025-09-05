@@ -13,7 +13,7 @@
     <title>Wiim Display</title>
 </head>
 <body>
-    <div id="active-layout" class="layout">
+        <div id="active-layout" class="layout">
       <section id="main">
         <img id="albumArt" class="album-art" src="./artwork-placeholder.png" alt="Album Art" class="lazyload" width="550" height="550">
         <div class="songInfo">
@@ -22,6 +22,7 @@
               <span id="timeSeparator">/</span>
               <span class="duration" id="duration">00:00</span>
             </div>
+            <audio id="jellyfin-audio" class="audio"></audio>
             <div class="track-title" id="title">Unknown</div>
             <div class="artist-name" id="artist">Unknown</div>
             <span class="separator">•••</span>
@@ -37,16 +38,56 @@
             <button id="nextButton" class="button">
               <i class="fa fa-step-forward"></i>
             </button>
+            <button id="shuffle" class="button">
+                <i class="fa fa-random"></i>
+            </button>
             <button id="switchLayout" class="button">
               <i class="fa fa-power-off"></i>
             </button>
-          </div>
+        </div>
       </div>
       <div id="idle-layout" class="layout hidden">
-          <div id="container"</div>
+            <div class="idle-container">
+                <div class="stat_box total_play">
+                  <div class="header">Total Played</div>
+                  <div id="total-num" class="scrobbles"></div>
+                </div>
+                <div class="stat_box last_played">
+                  <div class="header">Last Played</div>
+                  <div class="play_box">
+                    <div id="lastest-track" class="track"></div>
+                    <div id="lastest-artist" class="artist"></div>
+                  </div>
+                </div>
+                  <div class="list">
+                <div class="preset-dropdown">
+            <button onclick="dropdown()" class="button">Presets</button>
+              <div class="presets" id="presets">
+                <div class="preset-container">
+                  <button id="presetBtn" class="button">1</button>
+                  <button id="presetBtn" class="button">2</button>
+                  <button id="presetBtn" class="button">3</button>
+                  <button id="presetBtn" class="button">4</button>
+                  <button id="presetBtn" class="button">5</button>
+                  <button id="presetBtn" class="button">6</button>
+                  <button id="presetBtn" class="button">7</button>
+                  <button id="presetBtn" class="button">8</button>
+                  <button id="presetBtn" class="button">9</button>
+                  <button id="presetBtn" class="button">10</button>
+                  <button id="presetBtn" class="button">11</button>
+                  <button id="presetBtn" class="button">12</button>
+                </div>
+              </div>
+          </div>
+
+                </div>
+                  <div id="albums-list"class="albums">
+                  <img class="top_albums" id="top_albums" src="">
+                  </div>
+                </div>
+
       </div>
-
-
+      
 
       <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
       <script src="https://cdnjs.cloudflare.com/ajax/libs/color-thief/2.3.0/color-thief.umd.js"></script>
@@ -58,11 +99,16 @@
       let currentSong = {};
       let songDuration = "";
       let currPos = "";
-      console.log(document.getElementById('idle-layout')); // Should not be null
+      let localMode = false; 
+
+
+      function dropdown() {
+        document.getElementById("presets").classList.toggle("show");
+      }
+
       $(document).ready(function() {
 
        
-        
         let socket = new WebSocket("ws://10.0.0.149:8080/ws"); //establish socket connection
         
         const prevButton = document.getElementById("previousButton");
@@ -83,56 +129,69 @@
 
         playButton.addEventListener('click', function() {
           pause = true;
-          socket.send("onepause")
+          socket.send("onepause");
         }); 
         
-        const switchLayout = document.getElementById("switchLayout");// switch layout and send stop request
-        switchLayout.addEventListener('click', function() {
-          socket.send("stop");
-          socket.send("requestHistory");
-          currentLayout = "idle"
+        const presetBtns = document.querySelectorAll("#presetBtn");
+        
+        presetBtns.forEach (preset => {
+          preset.addEventListener('click', () => {
+            socket.send(preset.textContent);
+            console.log(preset.textContent);
+          })
         });
 
+        const shuffleBtn = document.getElementById("shuffle");
 
+        shuffleBtn.addEventListener('click', () => {
+          socket.send("shuffle");
+        });
+        const switchBtn = document.getElementById("switchLayout");
+        switchBtn.addEventListener('click', () => {
+          socket.send("stop");
+          socket.send("requestHistory");
+          currentLayout="idle";
+        });
+        // Socket functionallity 
 
         socket.onopen = function(event) {
           console.log("Connected to Websocket");
           socket.send("stop");
           socket.send("requestHistory");
-        }
+        };
 
         //handle data sending to client from server
         socket.onmessage = function(event) {
-          const data = JSON.parse(event.data);
-          if (data.status) {
-            if (data.idleTimer == 10000) {
-              socket.send("requestHistory");
-              currentLayout = "idle";
-            }     
-            if (data.idleTimer == 50000) {
-              console.log("stop music")
-              socket.send("stop");
+            const data = JSON.parse(event.data);
+            if (data.status) {
+              if (data.idleTimer == 10000) {
+                socket.send("requestHistory");
+                currentLayout = "idle";
+              }     
+              if (data.idleTimer == 50000) {
+                console.log("stop music")
+                socket.send("stop");
+              }
+              if (data.totlen != 0) {
+                songDuration = data.totlen;
+              }
+              document.getElementById("currentPos").textContent= formatDuration(data.curpos);
+           } 
+            if (data.metaData){
+              currentSong = data.metaData
+              updateUI(currentSong)
             }
-            if (data.totlen != 0) {
-              songDuration = data.totlen;
+            if (data.type == "history" && currentLayout =="idle" ) {
+              document.getElementById("active-layout").style.display = "none"; //hide active layout
+              document.getElementById("idle-layout").style.display = "block"; //unhide active layout
+              renderIdleLayout(data.Songs)
             }
-            document.getElementById("currentPos").textContent= formatDuration(data.curpos);
-         } 
-          if (data.metaData){
-            currentSong = data.metaData
-            updateUI(currentSong)
-          }
-          if (data.type == "history" && currentLayout =="idle" ) {
-            document.getElementById("active-layout").style.display = "none"; //hide active layout
-            document.getElementById("idle-layout").style.display = "block"; //unhide active layout
-            renderIdleLayout(data.Songs)
-          }
-          if (data.status == "play" && currentLayout == "idle") {//update from pause to play
-            document.getElementById("idle-layout").style.display = "none"; //hide active layout
-            document.getElementById("active-layout").style.display = "block"; //unhide active layout
-            currentLayout = "active"
-            updateUI(currentSong)
-          }
+            if (data.status == "play" && currentLayout == "idle") {//update from pause to play
+              document.getElementById("idle-layout").style.display = "none"; //hide active layout
+              document.getElementById("active-layout").style.display = "block"; //unhide active layout
+              currentLayout = "active"
+              updateUI(currentSong)
+            }
         };
 
         socket.onclose = function(event) {
@@ -216,9 +275,9 @@
           
           // Get last 18 unique albums (by album name)
           const seenAlbums = new Set();
-          const last18Albums = [];
+          const last24Albums = [];
           // Go through tracks from most recent to oldest
-          for (let i = trackData.length - 1; i >= 0 && last18Albums.length < 18; i--) {
+          for (let i = trackData.length - 1; i >= 0 && last24Albums.length < 24; i--) {
               const track = trackData[i].metaData;
               const album = track.album;
               const albumArt = track.albumArtURI;
@@ -226,7 +285,7 @@
               // Only add if we haven't seen this album yet and it has valid data
               if (album && albumArt && !seenAlbums.has(album)) {
                   seenAlbums.add(album);
-                  last18Albums.push({
+                  last24Albums.push({
                       name: album,
                       image: albumArt,
                       artist: track.artist
@@ -234,229 +293,17 @@
               }
           }
           // Generate album images HTML
-          const albumsHTML = last18Albums.map(album => 
-              `<img class="top_albums" src="${album.image}" alt="${album.name}" title="${album.name} by ${album.artist}">`
+          const albumsHTML = last24Albums.map(album => 
+              `<img class="top_albums" id="top_albums" src="${album.image}" alt="${album.name}" title="${album.name} by ${album.artist}">`
           ).join('');
-          
-          container.innerHTML = `
-              <div class="idle-container">
-                <div class="stat_box">
-                  <div class="header">Total Played</div>
-                  <div class="scrobbles">${totalSongPlayed}</div>
-                </div>
-                <div class="stat_box last_played">
-                  <div class="header">Last Played</div>
-                  <div class="play_box">
-                    <div class="track">${trackName}</div>
-                    <div class="artist">${artistName}</div>
-                  </div>
-                </div>
-                <div class="list">Recent Albums</div>
-                  <div class="albums">
-                        ${albumsHTML || '<p class="no-albums">No recent albums found</p>'}
-                  </div>
-                </div>
-              `;
-          addIdleStyles();         
-      }
-    
-
-
-    function addIdleStyles() {
-    // Check if styles already exist
-    if (document.getElementById('idle-styles')) return;
-    
-    const style = document.createElement('style');
-    style.id = 'idle-styles';
-    style.textContent = `
-
-body {
-  font-family: 'Courier New', monospace;
-}
-.header {
-    font-size: 30px;
-    font-weight: bold;
-    margin-bottom: 20px;
-    color: rgb(30, 147, 171);
-}
-    
-.stat_box {
-      background-color: #1C1C1E;
-      border-radius: 8px;
-      padding: 9px 10px 10px 14px;
-      margin: 11px 0px 20px 20px;
-      float: left;
-      width: calc(50% - 54px);
-      height: 140px;
-      color: #D0D0D0;
-      text-transform: uppercase;
-      font-size: 13px;
-      font-weight: bold;
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      position: relative;
-}
-.stat_box:last-of-type {
-  margin-right: 20px;
-}
-
-.play_box:last-of-type {
-  margin-right: 20px;
-}
-
-.stat_box .header {
-  position: absolute;
-  top: 0;
-  left: 0;
-  margin: 10px 0px 0px 15px;
-}
-    
-.track {
-    font-size: 10px;
-    color: #fff;
-    margin-bottom: 8px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-  
-.artist {
-    font-size: 20px;
-    color: #8D9194;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-    
-.list {
-    font-size: 20px;
-    font-weight: 600;
-    margin-bottom: 20px;
-    color: #fff;
-    margin-left: 20px;
-    margin-top: -10px;
-}
-    
-.albums {
-  width:fit-content;
-  height:fit-content;
-  margin-top: 10px;
-  margin-left: 15px;
-  overflow: visible;
-}
-
-.top_albums {
-    width: 150px;
-    height: 150px;
-    justify-content:center;
-    margin-left: 25px;
-    margin-bottom: 15px;
-    margin-top: 0px;
-    border-radius: 6px;
-    box-shadow: 0 0 10px 4px rgba(0, 0, 0, 0.7);
-    cursor: pointer;
-}
-
-.top_albums:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-}
-    
-.no-albums, .error-message {
-    color: #8D9194;
-    font-style: italic;
-    padding: 20px;
-}
-
-.background-blur {
-  position: fixed;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background-size: cover;
-  background-position: center;
-  filter: blur(40px);
-  opacity: 0.3;
-  z-index: -1;
-  transition: all 1s ease-in-out;
-}
-
-.background-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(135deg, rgba(10, 18, 68, 0.198), rgba(0,0,0,0.4));
-  z-index: 0;
-}
-
-
-.stat_box .scrobbles {
-  margin-top: 0px;
-  font-size: 45px;
-  color: #fff;
-  text-align: center;
-  }
-  .stat_box .artist {
-  margin-top: 8px;
-  text-transform: none;
-  font-size: 16px;
-  color: #8D9194;
-  white-space: pre-line;
-
-}
-.stat_box .track {
-  font-size: 24px;
-  text-transform: none;
-  color: #fff;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  margin-top: 0px;
-  white-space: pre-line;
-
-}
-
-@media only screen
-and (min-device-width: 744px)
-and (max-device-width: 1133px)
-and (orientation: landscape)
-and (-webkit-min-device-pixel-ratio: 2) {
-  body {
-      transform: scale(0.95); /* Everything 15% smaller */
-      padding: 0px;
-   }
-}
-@media only screen 
-  and (orientation: portrait) 
-  and (-webkit-min-device-pixel-ratio: 2) {
-  
-
-.top_albums {
-  width: 125px;
-  height: 125px;
-}
-.albums .top_albums:nth-child(17),
-.albums .top_albums:nth-child(18) {
-    display: none !important;
-  }
-
-.albums{
-  margin-top: 65px;
-}
-.list {
-  font-size: 25px;
-}
-    `;
-    document.head.appendChild(style);
-}
-
-}); 
-      
+          document.getElementById('lastest-track').textContent = trackName;
+          document.getElementById('total-num').textContent = totalSongPlayed;
+          document.getElementById('lastest-artist').textContent = artistName;
+          const albums = document.querySelector('.albums')
+          albums.innerHTML = albumsHTML;
+      }                 
+                
+  }); 
     
   </script>
 </body>

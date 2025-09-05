@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+  "strconv"
 )
 
 
@@ -45,12 +46,13 @@ func FetchCurrentSong(songChan chan Response) error {
     pollInterval = 6500
   }
   if Status.Status == "stop" {
-    pollInterval = 0
+    pollInterval = 50000
   }
   var previousSong Response
   var currentSong Response
   ticker := time.NewTicker(time.Duration(pollInterval) * time.Millisecond)
-  
+  defer ticker.Stop()
+
   for range ticker.C {
     tr := &http.Transport{
           TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
@@ -58,22 +60,23 @@ func FetchCurrentSong(songChan chan Response) error {
     url := "https://10.0.0.119/httpapi.asp?command=getMetaInfo"
 
     client := &http.Client{
-      Timeout: 5 * time.Second,
+      Timeout: 30 * time.Second,
       Transport: tr,
     }
     resp, err := client.Get(url)
 
     if err != nil {
       fmt.Print(err.Error())
+      continue
     }
-    defer resp.Body.Close()
 
     respData, err := io.ReadAll(resp.Body)
     if err != nil {
       fmt.Println("Error reading json: ", err)
-      return err
+      continue
     }
 
+    resp.Body.Close()
     if err := json.Unmarshal(respData, &currentSong); err != nil {
       fmt.Println("Cannot unmarshal JSON")
       
@@ -90,6 +93,7 @@ func FetchCurrentSong(songChan chan Response) error {
       previousSong = currentSong
     }
   }
+  fmt.Println(<-songChan)
   return nil
 }
 
@@ -101,6 +105,7 @@ func FetchCurrentStatus(statusChan chan PlayerStatus) error {
   var currentStatus PlayerStatus
   var previousStatus PlayerStatus
   ticker := time.NewTicker(time.Duration(pollInterval) * time.Millisecond)
+	defer ticker.Stop()
 
   for range ticker.C {
     tr := &http.Transport{
@@ -109,22 +114,22 @@ func FetchCurrentStatus(statusChan chan PlayerStatus) error {
     
     url := "https://10.0.0.119/httpapi.asp?command=getPlayerStatus"
     client := &http.Client{
-      Timeout: 5 * time.Second,
+      Timeout: 30 * time.Second,
       Transport: tr,
     }
     resp, err := client.Get(url)
 
     if err != nil {
       fmt.Println("error getting from url:",err)
-      return err
+      continue
     }
-    defer resp.Body.Close()
 
     respData, err := io.ReadAll(resp.Body)
     if err != nil {
       fmt.Println("error reading:",err)
     }
 
+    resp.Body.Close()
     if err := json.Unmarshal([]byte(respData), &currentStatus); err != nil {
       fmt.Println("Cannot unmarshal JSON")
       return err
@@ -141,6 +146,7 @@ func FetchCurrentStatus(statusChan chan PlayerStatus) error {
       currentStatus.IdleTimer = 0
     } 
   }
+  fmt.Println(<-statusChan)
   return nil
 }
 
@@ -164,10 +170,15 @@ func PlayerCommand(command string)error {
   case "next":
     url = "https://10.0.0.119/httpapi.asp?command=setPlayerCmd:next"
   case "previous":
-    url = "https://10.0.0.119/httpapi.asp?command=setPlayerCmd:next" 
+    url = "https://10.0.0.119/httpapi.asp?command=setPlayerCmd:previous" 
   case "stop":
     url = "https://10.0.0.119/httpapi.asp?command=setPlayerCmd:stop"
     Status.Status ="stop"
+  case "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12":
+    presetNum, _ := strconv.Atoi(command)
+    url = fmt.Sprintf("https://10.0.0.119/httpapi.asp?command=MCUKeyShortClick:%d", presetNum)
+  case "shuffle":
+    url = "https://10.0.0.119/httpapi.asp?command=setPlayerCmd:loopmode:3"
   }
 
   resp, err := client.Get(url)
@@ -178,6 +189,11 @@ func PlayerCommand(command string)error {
   
   return nil
 }
+
+
+
+
+
 
 
 
