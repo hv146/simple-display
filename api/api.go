@@ -86,6 +86,11 @@ func FetchCurrentSong(songChan chan Response) error {
       currentSong.MetaData.AlbumArtURI, 
       "320x320.jpg", 
       "640x640.jpg", 1)
+    currentSong.MetaData.AlbumArtURI = strings.Replace(
+      currentSong.MetaData.AlbumArtURI, 
+      "https", 
+      "http", 1)
+
 
     if currentSong != previousSong && currentSong.MetaData.Album != "" {
       songChan <-currentSong
