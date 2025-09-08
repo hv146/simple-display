@@ -47,9 +47,8 @@ func main() {
   songChan = make(chan api.Response)
   statusChan = make(chan api.PlayerStatus)
 
-  go api.FetchCurrentSong(songChan)
   go api.FetchCurrentStatus(statusChan)
-
+  go api.FetchCurrentSong(songChan)
   go handleBroadcasting(songChan, statusChan)
 
   http.Handle("/", http.FileServer(http.Dir("./static/")))

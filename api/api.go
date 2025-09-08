@@ -9,8 +9,30 @@ import (
 	"strings"
 	"time"
   "strconv"
+  "sync"
+)
+var (
+	httpClient *http.Client
+	clientOnce sync.Once
 )
 
+func getHTTPClient() *http.Client {
+	clientOnce.Do(func() {
+		tr := &http.Transport{
+			TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
+			MaxIdleConns:        2,                // Limit total idle connections
+			MaxIdleConnsPerHost: 1,                // Only 1 connection to WiiM at a time
+			IdleConnTimeout:     60 * time.Second, // Keep connections alive longer
+			DisableKeepAlives:   false,            // Enable keep-alive
+		}
+		
+		httpClient = &http.Client{
+			Timeout:   15 * time.Second, // Reduced timeout
+			Transport: tr,
+		}
+	})
+	return httpClient
+}
 
 type Response struct {
   MetaData struct {
@@ -38,49 +60,67 @@ var Songs []Response
 var Status PlayerStatus
 var TrackHistory History
 
+var lastAPICall time.Time
+var apiMutex sync.Mutex
+
+func rateLimitedRequest(url string) (*http.Response, error) {
+	apiMutex.Lock()
+	defer apiMutex.Unlock()
+	
+	// Ensure minimum 500ms between any API calls
+	if time.Since(lastAPICall) < 500*time.Millisecond {
+		time.Sleep(500*time.Millisecond - time.Since(lastAPICall))
+	}
+	
+	client := getHTTPClient()
+	resp, err := client.Get(url)
+	lastAPICall = time.Now()
+	
+	return resp, err
+}
+
 func FetchCurrentSong(songChan chan Response) error {
-  var pollInterval int
-  if Status.IdleTimer >= 10000 {
-    pollInterval = 20000
-  } else {
-    pollInterval = 6500
-  }
-  if Status.Status == "stop" {
-    pollInterval = 50000
-  }
   var previousSong Response
   var currentSong Response
-  ticker := time.NewTicker(time.Duration(pollInterval) * time.Millisecond)
+
+  currentSong.MetaData.Album = "unknow"
+  currentSong.MetaData.Title = "unknow"
+  currentSong.MetaData.Artist = "unknow"
+  currentSong.MetaData.AlbumArtURI = "unknow"
+  currentSong.MetaData.BitDepth = "unknow"
+  currentSong.MetaData.SampleRate = "unknow"
+  
+  basePollInterval := 10 * time.Second  // Increased base interval
+	slowPollInterval := 30 * time.Second 
+
+  ticker := time.NewTicker(basePollInterval)
   defer ticker.Stop()
 
   for range ticker.C {
-    tr := &http.Transport{
-          TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-      } // bypass tls
-    url := "https://10.0.0.119/httpapi.asp?command=getMetaInfo"
-
-    client := &http.Client{
-      Timeout: 30 * time.Second,
-      Transport: tr,
-    }
-    resp, err := client.Get(url)
-
-    if err != nil {
-      fmt.Print(err.Error())
-      continue
-    }
+    
+    var pollInterval time.Duration
+		if Status.Status == "stop" || Status.IdleTimer >= 10000 {
+			pollInterval = slowPollInterval
+		} else {
+			pollInterval = basePollInterval
+		}
+		
+		// Reset ticker if interval changed
+		ticker.Reset(pollInterval)
+		
+		url := "https://10.0.0.119/httpapi.asp?command=getMetaInfo"
+		resp, err := rateLimitedRequest(url)
 
     respData, err := io.ReadAll(resp.Body)
     if err != nil {
       fmt.Println("Error reading json: ", err)
       continue
     }
-
-    resp.Body.Close()
     if err := json.Unmarshal(respData, &currentSong); err != nil {
       fmt.Println("Cannot unmarshal JSON")
       
     }
+    resp.Body.Close()
     //fmt.Println(song)
     currentSong.MetaData.AlbumArtURI = strings.Replace(
       currentSong.MetaData.AlbumArtURI, 
@@ -92,38 +132,36 @@ func FetchCurrentSong(songChan chan Response) error {
       "http", 1)
 
 
-    if currentSong != previousSong && currentSong.MetaData.Album != "" {
+    if currentSong != previousSong && currentSong.MetaData.Album != "unknow" {
       songChan <-currentSong
       Songs = append(Songs, currentSong)
       previousSong = currentSong
+      fmt.Println(currentSong)
     }
   }
-  fmt.Println(<-songChan)
   return nil
 }
 
 func FetchCurrentStatus(statusChan chan PlayerStatus) error {
-  pollInterval := 10000
-  if Status.IdleTimer >= 10000 {
-    pollInterval = 20000
-  }
   var currentStatus PlayerStatus
   var previousStatus PlayerStatus
-  ticker := time.NewTicker(time.Duration(pollInterval) * time.Millisecond)
+  basePollInterval := 10 * time.Second   // Less frequent than song polling
+	slowPollInterval := 30 * time.Second  // When idle
+	
+	ticker := time.NewTicker(basePollInterval)
 	defer ticker.Stop()
-
   for range ticker.C {
-    tr := &http.Transport{
-          TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-      } // bypass tls
-    
-    url := "https://10.0.0.119/httpapi.asp?command=getPlayerStatus"
-    client := &http.Client{
-      Timeout: 30 * time.Second,
-      Transport: tr,
-    }
-    resp, err := client.Get(url)
+    var pollInterval time.Duration
+		if Status.IdleTimer >= 10000 {
+			pollInterval = slowPollInterval
+		} else {
+			pollInterval = basePollInterval
+		}
+		
+		ticker.Reset(pollInterval)
 
+		url := "https://10.0.0.119/httpapi.asp?command=getPlayerStatus"
+		resp, err := rateLimitedRequest(url)
     if err != nil {
       fmt.Println("error getting from url:",err)
       continue
@@ -132,13 +170,14 @@ func FetchCurrentStatus(statusChan chan PlayerStatus) error {
     respData, err := io.ReadAll(resp.Body)
     if err != nil {
       fmt.Println("error reading:",err)
+      return err
     }
 
-    resp.Body.Close()
     if err := json.Unmarshal([]byte(respData), &currentStatus); err != nil {
       fmt.Println("Cannot unmarshal JSON")
       return err
     }
+    resp.Body.Close()
     if currentStatus != previousStatus {
       Status = currentStatus
       statusChan <- currentStatus
@@ -151,19 +190,10 @@ func FetchCurrentStatus(statusChan chan PlayerStatus) error {
       currentStatus.IdleTimer = 0
     } 
   }
-  fmt.Println(<-statusChan)
   return nil
 }
 
 func PlayerCommand(command string)error {
-  tr := &http.Transport{
-          TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-      } // 
-
-  client := &http.Client{
-    Timeout: 5 * time.Second,
-    Transport: tr,
-  }
   var url string 
   switch command {
     case "play":
@@ -185,8 +215,7 @@ func PlayerCommand(command string)error {
   case "shuffle":
     url = "https://10.0.0.119/httpapi.asp?command=setPlayerCmd:loopmode:3"
   }
-
-  resp, err := client.Get(url)
+  resp, err := rateLimitedRequest(url)
   if err != nil {
     return err
   }

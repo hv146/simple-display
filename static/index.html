@@ -4,18 +4,18 @@
     <meta charset="UTF-8">
 
     <meta name="viewport", content="width=device-width, initial-scale=1.0">   
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Simple Display">
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-    <link rel="stylesheet" href="styles.css">     
+    <link rel="stylesheet" href="styles1.css">    
     <title>Wiim Display</title>
 </head>
 <body>
         <div id="active-layout" class="layout">
       <section id="main">
-        <img id="albumArt" class="album-art" src="./artwork-placeholder.png" alt="Album Art" class="lazyload" width="550" height="550">
+        <img id="albumArt" class="album-art" src="./artwork-placeholder.png" alt="Album Art" class="lazyload">
         <div class="songInfo">
             <div class="song-duration" id="songLength">
               <span id="currentPos">00:00</span>
@@ -240,7 +240,8 @@
               }
             }
             img.src = imageURL;
-        }
+        };
+
     function findBestBackgroundColor(palette) {
       const sortedByDarkness = palette.sort((a, b) => getBrightness(a) - getBrightness(b));
       
