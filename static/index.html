@@ -13,7 +13,8 @@
     <title>Wiim Display</title>
 </head>
 <body>
-        <div id="active-layout" class="layout">
+    <div id="active-layout" class="layout">
+      <div class="background-img"></div>
       <section id="main">
         <img id="albumArt" class="album-art" src="./artwork-placeholder.png" alt="Album Art" class="lazyload">
         <div class="songInfo">
@@ -94,14 +95,15 @@
 
     <script>
 
-      let currentLayout = "idle";
+      let currentLayout = "active";
       let songHistory  = {};
       let currentSong = {};
       let songDuration = "";
       let currPos = "";
       let localMode = false; 
 
-
+      
+      document.getElementById("idle-layout").style.display = "none"; //hide active layout
       function dropdown() {
         document.getElementById("presets").classList.toggle("show");
       }
@@ -156,8 +158,9 @@
 
         socket.onopen = function(event) {
           console.log("Connected to Websocket");
+          /*
           socket.send("stop");
-          socket.send("requestHistory");
+          socket.send("requestHistory");*/
         };
 
         //handle data sending to client from server
@@ -220,7 +223,7 @@
             document.getElementById("album").textContent = song.album;
             document.getElementById("albumArt").src = song.albumArtURI;
             document.getElementById("artist").textContent = song.artist;
-             ;
+             
             // update background color
             const colorThief = new ColorThief()
             var imageURL = document.getElementById("albumArt").src;
@@ -240,8 +243,10 @@
               }
             }
             img.src = imageURL;
+            const bgImg = document.querySelector('.background-img');
+                bgImg.style.backgroundImage = `url('${song.albumArtURI}')`;
         };
-
+          
     function findBestBackgroundColor(palette) {
       const sortedByDarkness = palette.sort((a, b) => getBrightness(a) - getBrightness(b));
       

@@ -14,7 +14,20 @@ body {
     font-family: 'Courier New', monospace;
 }
 
-
+.background-img {
+        top:0;
+        left:0;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: cover;
+        opacity: .5;
+        filter: blur(80px);
+        -webkit-filter: blur(80px);
+        height: 100%;
+        width: 100%;
+  position:absolute;
+        z-index: -1;
+}
 
 .presets-dropdown {
   position: relative;
@@ -468,13 +481,12 @@ and (-webkit-min-device-pixel-ratio: 2) {
 }
 .albums {
   grid-template-columns: repeat(7, 1fr);
-  margin-left:35px;
-  gap :10px;
+  margin-left:27px;
+  gap :15px;
     }
 .top_albums {
   width: 130px;
   height: 130px;
-  margin-left:10px;
 }
 .albums .top_albums:nth-child(22),
 .albums .top_albums:nth-child(23),
@@ -511,4 +523,39 @@ and (-webkit-min-device-pixel-ratio: 2) {
     }
   }
 }
+
+@media only screen and 
+(min-width: 834px) and 
+(max-width: 1194px) and
+(orientation: landscape) {
+#active-layout {
+
+#main {
+      flex-direction :row;
+    }
+.songInfo {
+  margin-top : 90px;
+  margin-left: 140px;
+  text-align:left;
+    }
+.playbackControl {
+      display:none;
+      flex-direction:column;
+      align-items:unset;
+      width:40px;
+      position:absolute;
+    margin-left:650px;
+      margin-top:90px;
+      gap:8px
+    }
+.album-art {
+      width:700px;
+      height:700px;
+      margin-top:90px;
+      margin-left: 10px;
+    }
+  }
+
+}
+
 

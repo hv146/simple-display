@@ -90,7 +90,7 @@ func FetchCurrentSong(songChan chan Response) error {
   currentSong.MetaData.BitDepth = "unknow"
   currentSong.MetaData.SampleRate = "unknow"
   
-  basePollInterval := 10 * time.Second  // Increased base interval
+  basePollInterval := 8 * time.Second  // Increased base interval
 	slowPollInterval := 30 * time.Second 
 
   ticker := time.NewTicker(basePollInterval)
@@ -108,7 +108,7 @@ func FetchCurrentSong(songChan chan Response) error {
 		// Reset ticker if interval changed
 		ticker.Reset(pollInterval)
 		
-		url := "https://10.0.0.119/httpapi.asp?command=getMetaInfo"
+		url := "https://10.0.0.120/httpapi.asp?command=getMetaInfo"
 		resp, err := rateLimitedRequest(url)
 
     respData, err := io.ReadAll(resp.Body)
@@ -136,7 +136,6 @@ func FetchCurrentSong(songChan chan Response) error {
       songChan <-currentSong
       Songs = append(Songs, currentSong)
       previousSong = currentSong
-      fmt.Println(currentSong)
     }
   }
   return nil
@@ -145,7 +144,7 @@ func FetchCurrentSong(songChan chan Response) error {
 func FetchCurrentStatus(statusChan chan PlayerStatus) error {
   var currentStatus PlayerStatus
   var previousStatus PlayerStatus
-  basePollInterval := 10 * time.Second   // Less frequent than song polling
+  basePollInterval := 7 * time.Second   // Less frequent than song polling
 	slowPollInterval := 30 * time.Second  // When idle
 	
 	ticker := time.NewTicker(basePollInterval)
@@ -160,7 +159,7 @@ func FetchCurrentStatus(statusChan chan PlayerStatus) error {
 		
 		ticker.Reset(pollInterval)
 
-		url := "https://10.0.0.119/httpapi.asp?command=getPlayerStatus"
+		url := "https://10.0.0.120/httpapi.asp?command=getPlayerStatus"
 		resp, err := rateLimitedRequest(url)
     if err != nil {
       fmt.Println("error getting from url:",err)
@@ -197,23 +196,23 @@ func PlayerCommand(command string)error {
   var url string 
   switch command {
     case "play":
-    url = "https://10.0.0.119/httpapi.asp?command=setPlayerCmd:play"
+    url = "https://10.0.0.120/httpapi.asp?command=setPlayerCmd:play"
   case "pause":
-    url = "https://10.0.0.119/httpapi.asp?command=setPlayerCmd:pause"
+    url = "https://10.0.0.120/httpapi.asp?command=setPlayerCmd:pause"
   case "onepause":
-    url = "https://10.0.0.119/httpapi.asp?command=setPlayerCmd:onepause" // toggle pause/pause
+    url = "https://10.0.0.120/httpapi.asp?command=setPlayerCmd:onepause" // toggle pause/pause
   case "next":
-    url = "https://10.0.0.119/httpapi.asp?command=setPlayerCmd:next"
+    url = "https://10.0.0.120/httpapi.asp?command=setPlayerCmd:next"
   case "previous":
-    url = "https://10.0.0.119/httpapi.asp?command=setPlayerCmd:previous" 
+    url = "https://10.0.0.120/httpapi.asp?command=setPlayerCmd:previous" 
   case "stop":
-    url = "https://10.0.0.119/httpapi.asp?command=setPlayerCmd:stop"
+    url = "https://10.0.0.120/httpapi.asp?command=setPlayerCmd:stop"
     Status.Status ="stop"
   case "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12":
     presetNum, _ := strconv.Atoi(command)
-    url = fmt.Sprintf("https://10.0.0.119/httpapi.asp?command=MCUKeyShortClick:%d", presetNum)
+    url = fmt.Sprintf("https://10.0.0.120/httpapi.asp?command=MCUKeyShortClick:%d", presetNum)
   case "shuffle":
-    url = "https://10.0.0.119/httpapi.asp?command=setPlayerCmd:loopmode:3"
+    url = "https://10.0.0.120/httpapi.asp?command=setPlayerCmd:loopmode:3"
   }
   resp, err := rateLimitedRequest(url)
   if err != nil {
