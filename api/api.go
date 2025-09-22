@@ -56,9 +56,13 @@ type History struct {
   Type string `json:"type"`
   Songs []Response `jsons:"songs"`
 }
+
 var Songs []Response
 var Status PlayerStatus
 var TrackHistory History
+var headphoneMode bool
+var url string;
+
 
 var lastAPICall time.Time
 var apiMutex sync.Mutex
@@ -80,68 +84,98 @@ func rateLimitedRequest(url string) (*http.Response, error) {
 }
 
 func FetchCurrentSong(songChan chan Response) error {
-  var previousSong Response
-  var currentSong Response
+    var previousSong Response
+    var currentSong Response
 
-  currentSong.MetaData.Album = "unknow"
-  currentSong.MetaData.Title = "unknow"
-  currentSong.MetaData.Artist = "unknow"
-  currentSong.MetaData.AlbumArtURI = "unknow"
-  currentSong.MetaData.BitDepth = "unknow"
-  currentSong.MetaData.SampleRate = "unknow"
-  
-  basePollInterval := 8 * time.Second  // Increased base interval
-	slowPollInterval := 30 * time.Second 
-
-  ticker := time.NewTicker(basePollInterval)
-  defer ticker.Stop()
-
-  for range ticker.C {
+    currentSong.MetaData.Album = "unknow"
+    currentSong.MetaData.Title = "unknow"
+    currentSong.MetaData.Artist = "unknow"
+    currentSong.MetaData.AlbumArtURI = "unknow"
+    currentSong.MetaData.BitDepth = "unknow"
+    currentSong.MetaData.SampleRate = "unknow"
     
-    var pollInterval time.Duration
-		if Status.Status == "stop" || Status.IdleTimer >= 10000 {
-			pollInterval = slowPollInterval
-		} else {
-			pollInterval = basePollInterval
-		}
-		
-		// Reset ticker if interval changed
-		ticker.Reset(pollInterval)
-		
-		url := "https://10.0.0.120/httpapi.asp?command=getMetaInfo"
-		resp, err := rateLimitedRequest(url)
+    basePollInterval := 8 * time.Second  // Increased base interval
+    slowPollInterval := 30 * time.Second 
 
-    respData, err := io.ReadAll(resp.Body)
-    if err != nil {
-      fmt.Println("Error reading json: ", err)
-      continue
-    }
-    if err := json.Unmarshal(respData, &currentSong); err != nil {
-      fmt.Println("Cannot unmarshal JSON")
+    ticker := time.NewTicker(basePollInterval)
+    defer ticker.Stop()
+
+    for range ticker.C {
       
-    }
-    resp.Body.Close()
-    //fmt.Println(song)
-    currentSong.MetaData.AlbumArtURI = strings.Replace(
-      currentSong.MetaData.AlbumArtURI, 
-      "320x320.jpg", 
-      "640x640.jpg", 1)
-    currentSong.MetaData.AlbumArtURI = strings.Replace(
-      currentSong.MetaData.AlbumArtURI, 
-      "https", 
-      "http", 1)
+      var pollInterval time.Duration
+      if Status.Status == "stop" {
+        continue
+      }
+      if Status.IdleTimer >= 10000 {
+        pollInterval = slowPollInterval
+      } else {
+        pollInterval = basePollInterval
+      }
+      // Reset ticker if interval changed
+      ticker.Reset(pollInterval)
+      
+      if headphoneMode {
+        url = "https://10.0.0.119/httpapi.asp?command=getMetaInfo"
+      } else {
+        url = "https://10.0.0.60/httpapi.asp?command=getMetaInfo"
+      }
+      resp, err := rateLimitedRequest(url)
+      if err != nil {
+        fmt.Println("Error getting from URL %v\n", err)
+        continue
+      }
+
+      if resp == nil {
+        fmt.Println("Status response is nil")
+        continue
+      }
+      if resp.Body == nil {
+        fmt.Println("Status response body is nil")
+        continue
+      }
+
+      respData, err := io.ReadAll(resp.Body)
+      resp.Body.Close()
+      if err != nil {
+        fmt.Println("Error reading json: ", err)
+        continue
+      }
+      currentSong = Response{}
+      currentSong.MetaData.Album = "unknown"
+      currentSong.MetaData.Title = "unknown"
+      currentSong.MetaData.Artist = "unknown"
+      currentSong.MetaData.AlbumArtURI = "unknown"
+      currentSong.MetaData.BitDepth = "unknown"
+      currentSong.MetaData.SampleRate = "unknown"
+
+      if err := json.Unmarshal(respData, &currentSong); err != nil {
+        fmt.Println("Cannot unmarshal JSON")
+        
+      }
+      //fmt.Println(song)
+      currentSong.MetaData.AlbumArtURI = strings.Replace(
+        currentSong.MetaData.AlbumArtURI, 
+        "320x320.jpg", 
+        "640x640.jpg", 1)
+      currentSong.MetaData.AlbumArtURI = strings.Replace(
+        currentSong.MetaData.AlbumArtURI, 
+        "https", 
+        "http", 1)
 
 
-    if currentSong != previousSong && currentSong.MetaData.Album != "unknow" {
-      songChan <-currentSong
-      Songs = append(Songs, currentSong)
-      previousSong = currentSong
+      if currentSong != previousSong && currentSong.MetaData.Album != "unknow" {
+        select {
+        case songChan <- currentSong:
+          Songs = append(Songs, currentSong)
+          previousSong = currentSong
+        }
+      }
     }
-  }
   return nil
 }
 
 func FetchCurrentStatus(statusChan chan PlayerStatus) error {
+  headphoneMode = false
   var currentStatus PlayerStatus
   var previousStatus PlayerStatus
   basePollInterval := 7 * time.Second   // Less frequent than song polling
@@ -159,14 +193,27 @@ func FetchCurrentStatus(statusChan chan PlayerStatus) error {
 		
 		ticker.Reset(pollInterval)
 
-		url := "https://10.0.0.120/httpapi.asp?command=getPlayerStatus"
-		resp, err := rateLimitedRequest(url)
+		if headphoneMode {
+        url = "https://10.0.0.119/httpapi.asp?command=getPlayerStatus"
+      } else {
+        url = "https://10.0.0.60/httpapi.asp?command=getPlayerStatus"
+      }
+    resp, err := rateLimitedRequest(url)
     if err != nil {
       fmt.Println("error getting from url:",err)
       continue
     }
+    if resp == nil {
+			fmt.Println("Status response is nil")
+			continue
+		}
+    if resp.Body == nil {
+			fmt.Println("Status response body is nil")
+			continue
+		}
 
     respData, err := io.ReadAll(resp.Body)
+    resp.Body.Close()
     if err != nil {
       fmt.Println("error reading:",err)
       return err
@@ -176,11 +223,12 @@ func FetchCurrentStatus(statusChan chan PlayerStatus) error {
       fmt.Println("Cannot unmarshal JSON")
       return err
     }
-    resp.Body.Close()
     if currentStatus != previousStatus {
       Status = currentStatus
-      statusChan <- currentStatus
-      previousStatus = currentStatus
+      select {
+      case statusChan <- currentStatus:
+        previousStatus = currentStatus
+      }
     }
     if currentStatus.Status == "pause" {
       currentStatus.IdleTimer += 2000
@@ -193,28 +241,34 @@ func FetchCurrentStatus(statusChan chan PlayerStatus) error {
 }
 
 func PlayerCommand(command string)error {
-  var url string 
+  cmdUrl := "https://10.0.0.60/httpapi.asp?command="
+  if headphoneMode {
+    cmdUrl = "https://10.0.0.119/httpapi.asp?command="
+  }
   switch command {
-    case "play":
-    url = "https://10.0.0.120/httpapi.asp?command=setPlayerCmd:play"
+  case "play":
+    cmdUrl += "setPlayerCmd:play"
   case "pause":
-    url = "https://10.0.0.120/httpapi.asp?command=setPlayerCmd:pause"
+    cmdUrl += "setPlayerCmd:pause"
   case "onepause":
-    url = "https://10.0.0.120/httpapi.asp?command=setPlayerCmd:onepause" // toggle pause/pause
+    cmdUrl += "setPlayerCmd:onepause" // toggle pause/pause
   case "next":
-    url = "https://10.0.0.120/httpapi.asp?command=setPlayerCmd:next"
+    cmdUrl += "setPlayerCmd:next"
   case "previous":
-    url = "https://10.0.0.120/httpapi.asp?command=setPlayerCmd:previous" 
+    cmdUrl += "setPlayerCmd:previous" 
   case "stop":
-    url = "https://10.0.0.120/httpapi.asp?command=setPlayerCmd:stop"
-    Status.Status ="stop"
+    cmdUrl += "setPlayerCmd:stop"
   case "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12":
     presetNum, _ := strconv.Atoi(command)
-    url = fmt.Sprintf("https://10.0.0.120/httpapi.asp?command=MCUKeyShortClick:%d", presetNum)
+    cmdUrl += fmt.Sprintf("MCUKeyShortClick:%d", presetNum)
   case "shuffle":
-    url = "https://10.0.0.120/httpapi.asp?command=setPlayerCmd:loopmode:3"
+    cmdUrl += "setPlayerCmd:loopmode:3"
+  case "headphoneMode":
+    headphoneMode = true
+  case "speakersMode":
+    headphoneMode = false
   }
-  resp, err := rateLimitedRequest(url)
+  resp, err := rateLimitedRequest(cmdUrl)
   if err != nil {
     return err
   }

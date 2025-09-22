@@ -18,7 +18,6 @@ var upgrader = websocket.Upgrader{
 var clients = make(map[*websocket.Conn]bool) //track active clients
 var songChan chan api.Response
 var statusChan chan api.PlayerStatus
-
 func handleConnections(w http.ResponseWriter, r *http.Request) {
 
   ws, err := upgrader.Upgrade(w, r, nil)
@@ -44,11 +43,31 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 
 func main() {
   //createSongDB()
-  songChan = make(chan api.Response)
-  statusChan = make(chan api.PlayerStatus)
+  songChan = make(chan api.Response, 10)
+  statusChan = make(chan api.PlayerStatus, 10)
+  //Fetch current status
+  go func() {
+    defer func() {
+      if r:= recover(); r != nil {
+        log.Printf("Recovered from panic while fetching currentstatus: %v", r)
+      }
+    }()
+    if err := api.FetchCurrentStatus(statusChan); err != nil {
+      log.Printf("fetch current status error: %v", err)
+    }
+  }()
+  //Fetch current song
+  go func() {
+    defer func() {
+      if r:= recover(); r != nil {
+        log.Printf("Recovered from panic while fetching currentSong: %v", r)
+      }
+    }()
+    if err := api.FetchCurrentSong(songChan); err != nil {
+      log.Printf("fetch current status error: %v", err)
+    }
+  }()
 
-  go api.FetchCurrentStatus(statusChan)
-  go api.FetchCurrentSong(songChan)
   go handleBroadcasting(songChan, statusChan)
 
   http.Handle("/", http.FileServer(http.Dir("./static/")))
