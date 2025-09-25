@@ -163,12 +163,13 @@ func FetchCurrentSong(songChan chan Response) error {
         "http", 1)
 
 
-      if currentSong != previousSong && currentSong.MetaData.Album != "unknow" {
-        select {
-        case songChan <- currentSong:
-          Songs = append(Songs, currentSong)
-          previousSong = currentSong
+      if currentSong.MetaData.Title != previousSong.MetaData.Title && currentSong.MetaData.Album != "unknow" {  
+        if currentSong.MetaData.AlbumArtURI == "unknow" {
+              currentSong.MetaData.AlbumArtURI = getPlexThumb()
         }
+        songChan <- currentSong
+        Songs = append(Songs, currentSong)
+        previousSong = currentSong
       }
     }
   return nil
@@ -277,7 +278,27 @@ func PlayerCommand(command string)error {
   return nil
 }
 
+func getPlexThumb() string {
+  ctx := context.Background()
+      
+  s := plexgo.New(
+      plexgo.WithSecurity("NEJhXizPevTwHedmxHUm"),
+      plexgo.WithServerURL("http://10.0.0.143:32400"), // Your Plex server URL
+  )
 
+  res, err := s.Sessions.GetSessions(ctx)
+  if err != nil {
+      log.Fatal(err)
+  }
+  if res.Object != nil {
+
+    if res.Object.MediaContainer.Metadata != nil {
+      session := res.Object.MediaContainer.Metadata[0]
+       return fmt.Sprintf("http://10.0.0.143:32400%s?X-Plex-Token=NEJhXizPevTwHedmxHUm\n",*session.Thumb)
+    }
+  }
+  return ""
+}
 
 
 
